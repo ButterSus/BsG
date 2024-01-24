@@ -1,0 +1,21 @@
+main RE:
+    basic-RE+:'|'+ => Self
+
+basic-RE:
+    elementary-RE {'*' | '+' | '?'} => Kleene(pattern, type = $enumStringMap(KleeneType, '*': STAR, '+': PLUS, '?': QUESTION))
+    elementary-RE => Self
+
+elementary-RE:
+    {group | '.' | '$' | negative-set | positive-set | <CHARACTER>} => Self
+
+group:
+    '(' .RE ')' => Self
+
+set:
+    '[' .'^'? .set-items ']' => Set(isPositive = $isEmpty(), items)
+
+set-items:
+    {range | ?!']' {<CHARACTER> => }}+ => Self
+
+range:
+    .<CHARACTER> '-' .<CHARACTER> => Range(from, to)
