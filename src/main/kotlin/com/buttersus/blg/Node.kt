@@ -104,20 +104,32 @@ sealed class Node {
     }
 
     // Custom nodes
-    data class Set(
-        val isPositive: Boolean,
-        val items: Node,
-    ) : Node() {
-        override val parameters: Map<String, String> = mapOf(
-            "sign" to if (isPositive) "+" else "-",
-        )
-    }
-
-    data class Range(
-        val from: Node,
-        val to: Node,
+    // => File(nodes)
+    data class File(
+        val statements: Node
     ) : Node()
 
+    // => Statement(modifiers, name, nodes)
+    data class Statement(
+        val modifiers: Node,
+        val name: Node,
+        val nodes: Node,
+    ) : Node()
+
+//    data class Set(
+//        val isPositive: Boolean,
+//        val items: Node,
+//    ) : Node() {
+//        override val parameters: Map<String, String> = mapOf(
+//            "sign" to if (isPositive) "+" else "-",
+//        )
+//    }
+//
+//    data class Range(
+//        val from: Node,
+//        val to: Node,
+//    ) : Node()
+//
     data class Kleene(
         val pattern: Node,
         val type: KleeneType,

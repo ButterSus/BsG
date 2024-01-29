@@ -1,14 +1,20 @@
 package com.buttersus
 
 import com.buttersus.blg.*
+import mu.KotlinLogging
+
+val logger = KotlinLogging.logger {}
 
 fun main() {
-    // resources/main.txt
-    val `𝚂` = RegexLexer::class.java.getResource("/main.blg")
+    logger.info { "Reading file..." }
+    val `𝚂` = Lexer::class.java.getResource("/main.blg")
         ?.readText()?.toSource() ?: throw Exception("Could not read file")
-    val `𝕃` = RegexLexer()(`𝚂`).tokenize()
-//    val `ℙ` = RegexParser()(`𝕃`)
-    for (token in `𝕃`) {
-        println(token)
-    }
+    logger.info { "File read" }
+
+    val `𝕃` = Lexer()(`𝚂`).tokenize()
+    val `ℙ` = Parser()(`𝕃`).parse()
+
+    logger.info { "Printing..." }
+    println(`ℙ`?.toPretty())
+    logger.info { "Printed" }
 }

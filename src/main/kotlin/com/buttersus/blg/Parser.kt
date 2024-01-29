@@ -1,9 +1,11 @@
 @file:Suppress(
     "MemberVisibilityCanBePrivate", "SameParameterValue",
-    "unused", "RedundantNullableReturnType"
+    "Unused", "RedundantNullableReturnType"
 )
 
 package com.buttersus.blg
+
+import mu.KotlinLogging
 
 /**
  * This parser has a few ideas:
@@ -14,13 +16,14 @@ package com.buttersus.blg
  *
  * @constructor Creates a parser with the given logging
  */
-class RegexParser {
+class Parser {
     // Attributes
     internal lateinit var `𝕋`: Iterator<Token>
     internal val `𝕋′`: ArrayList<Token> = arrayListOf()
     internal var `𝚒`: Index = 0
+    internal val logger = KotlinLogging.logger {}
 
-    operator fun invoke(`𝕋`: Iterator<Token>): RegexParser {
+    operator fun invoke(`𝕋`: Iterator<Token>): Parser {
         this.`𝕋` = `𝕋`
         this.`𝕋′`.clear()
         this.`𝕄`.clear()
@@ -188,7 +191,7 @@ class RegexParser {
      * @param 𝚏s the group of productions
      * @return the alternative production or `null` if it is not successful
      */
-    private fun `⋃`(vararg `𝚏s`: () -> Node?): Node? {
+    private fun `⋃`(`𝚏s`: List<() -> Node?>): Node? {
         return `𝚏s`.firstNotNullOfOrNull { `𝚏` -> `𝚏`() }
     }
 
@@ -293,7 +296,7 @@ class RegexParser {
      * @param 𝚏s the group of productions
      * @return the group of productions
      */
-    fun `{…}`(vararg `𝚏s`: () -> Node?): Node.Group? {
+    private fun `{…}`(`𝚏s`: List<() -> Node?>): Node.Group? {
         val `𝚒` = mark()
         val `𝚗𝚜` = `𝚏s`.map { `𝚏` -> `𝚏`() ?: return null.also { `𝚒`.toMark() } }
         return Node.Group(*`𝚗𝚜`.toTypedArray())
@@ -313,7 +316,7 @@ class RegexParser {
      * @param 𝚏s the group of productions with alternatives
      * @return the optional group of productions
      */
-    fun `{∅}₁`(vararg `𝚏s`: Pair<() -> Node?, Node>): Node.Group {
+    private fun `{∅}₁`(`𝚏s`: List<Pair<() -> Node?, Node>>): Node.Group {
         val `𝚒` = mark()
         val `𝚗𝚜` = `𝚏s`.map { (`𝚏`, _) ->
             `𝚏`() ?: return Node.Group(*`𝚏s`.map { (_, `𝚗`) -> `𝚗` }.toTypedArray())
@@ -336,7 +339,7 @@ class RegexParser {
      * @param 𝚏s the group of productions with alternative functions
      * @return the optional group of productions
      */
-    fun `{∅}₂`(vararg `𝚏s`: Pair<() -> Node?, () -> Node>): Node.Group {
+    private fun `{∅}₂`(`𝚏s`: List<Pair<() -> Node?, () -> Node>>): Node.Group {
         val `𝚒` = mark()
         val `𝚗𝚜` = `𝚏s`.map { (`𝚏`, _) ->
             `𝚏`() ?: return Node.Group(*`𝚏s`.map { (_, `𝚗`) -> `𝚗`() }.toTypedArray())
@@ -366,16 +369,102 @@ class RegexParser {
     private fun `≡⊛`(`𝚟`: String): Node.Catalog = `⊛` { `≡`(`𝚟`) }
 
     /** `{α₁ ∣ α₂ ∣ …}?` */
-    private fun `⋃∅`(vararg `𝚏s`: () -> Node?): Node? = `⋃`(*`𝚏s`, { Node.Empty })
+    private fun `⋃∅`(`𝚏s`: List<() -> Node?>): Node? = `⋃`(`𝚏s` + { Node.Empty })
 
     /** `{α₁ ∣ α₂ ∣ …}+` */
-    private fun `⋃⊕`(vararg `𝚏s`: () -> Node?): Node? = `⊕` { `⋃`(*`𝚏s`) }
+    private fun `⋃⊕`(`𝚏s`: List<() -> Node?>): Node? = `⊕` { `⋃`(`𝚏s`) }
 
     /** `{α₁ ∣ α₂ ∣ …}*` */
-    private fun `⋃⊛`(vararg `𝚏s`: () -> Node?): Node = `⊛` { `⋃`(*`𝚏s`) }
+    private fun `⋃⊛`(`𝚏s`: List<() -> Node?>): Node = `⊛` { `⋃`(`𝚏s`) }
+
+    // 6. Special methods
+    // =================>
+    private fun `!`(`𝚝`: String, `𝚏`: () -> Node?): Node {
+        return `𝚏`() ?: run {
+            val `𝚙₁` = peek()?.`𝚙₁` ?: `𝕋′`.last().`𝚙₁`
+            val `𝚙₂` = peek()?.`𝚙₂` ?: `𝕋′`.last().`𝚙₂`
+            throw SyntaxException(`𝚙₁`, `𝚙₂`, `𝚝`)
+        }
+    }
 
     // Custom productions
-    fun parse(): Node? = TODO("Not yet implemented")
+    fun parse(): Node? {
+        logger.info { "Starting..." }
+        return file().also { logger.info { "Finished" } }
+    }
+
+    private fun file(): Node? = `𝚖`(
+        "parse", false,
+        ::`⋃`.`→`(
+            // statement:<NEWLINE>* => File(statements)
+            Node::File.`→…`(
+                ::`⊛̂`.`→`(
+                    ::`statement`,
+                    ::`≈`.`→`(Type.NEWLINE)
+                )
+            )
+        )
+    )
+
+    private fun `statement`(): Node? = `𝚖`(
+        "statement", false,
+        // .modifiers .identifier !':' -> "Expected ':'"
+        // <NEWLINE> <INDENT> .node:<NEWLINE>+ <DEDENT> => Statement(modifiers, name, nodes)
+        Node::Statement.`→…`(
+            setOf(1),
+            ::`{…}`.`→`(
+                ::`modifiers`,
+                ::`identifier`,
+                ::`!`.`→`("Expected ':'", ::`≡`.`→`(":")),
+                ::`≈`.`→`(Type.NEWLINE),
+                ::`≈`.`→`(Type.INDENT),
+                ::`⊕̂`.`→`(
+                    ::`node`,
+                    ::`≈`.`→`(Type.NEWLINE)
+                ),
+                ::`≈`.`→`(Type.DEDENT)
+            ).select(1, 2, 6)
+        )
+    )
+
+    private fun `modifiers`(): Node? = `𝚖`("modifiers", false,
+        // {'main' | 'public' | 'private' | 'protected'}* => Self
+        ::`⋃⊛`.`→`(
+            ::`≡`.`→`("main"),
+            ::`≡`.`→`("public"),
+            ::`≡`.`→`("private"),
+            ::`≡`.`→`("protected")
+        )
+    )
+
+    private fun `identifier`(): Node? = `𝚖`("identifier", false,
+        // <CNAME> | <NAME> => Self
+        ::`⋃`.`→`(
+            ::`≈`.`→`(Type.CNAME),
+            ::`≈`.`→`(Type.NAME)
+        )
+    )
+
+    private fun `node`(): Node? = `𝚖`("identifier", false,
+        // .element+ !'=>' -> "Expected '=>'" .result => Node(elements, result)
+        ::`{…}`.`→`(
+            ::`⊕`.`→`(
+                ::`basic-PEG`
+            ),
+            ::`!`.`→`("Expected '=>'", ::`≡`.`→`("=>")),
+            ::`result`
+        ).select(1, 3)
+    )
+
+    private fun `basic-PEG`(): Node? = `𝚖`("element", false,
+        // elementary-PEG {'*' | '+' | '?'} => Kleene(pattern, type = $enumStringMap(KleeneType, '*': STAR, '+': PLUS, '?': QUESTION))
+        TODO()
+    )
+
+    private fun `result`(): Node? = `𝚖`("result", false,
+        TODO("Not yet implemented")
+    )
+
 //    private fun `RE`(): Node? = `𝚖`("RE", true) {
 //        `⋃`(
 //            // cases==>

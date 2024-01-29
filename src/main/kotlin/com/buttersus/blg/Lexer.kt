@@ -2,12 +2,15 @@
 
 package com.buttersus.blg
 
-class RegexLexer {
+import mu.KotlinLogging
+
+class Lexer {
     // Attributes
     internal lateinit var `𝚂`: Source
     internal lateinit var `𝚙`: Position
+    internal val logger = KotlinLogging.logger {}
 
-    operator fun invoke(`𝚂`: Source): RegexLexer {
+    operator fun invoke(`𝚂`: Source): Lexer {
         this.𝚂 = 𝚂
         this.`𝚙` = Position(𝚂)
         return this
@@ -16,10 +19,11 @@ class RegexLexer {
     private val indentStack = mutableListOf(0)
 
     // Methods
-    fun tokenize(): Iterator<Token> = iterator {
+    fun tokenize(): Iterator<Token> = iterator{
+        logger.info { "Starting..." }
         while (`𝚙`.isNotAtEnd()) {
             Regex("""[^\S\r\n]*""").matchAt(`𝚙`)!!
-                .also { this@RegexLexer.`𝚙` += it.value.length }
+                .also { this@Lexer.`𝚙` += it.value.length }
             if (Regex("""\r?\n(?:[^\S\r\n]*\r?\n)*""").matchAt(`𝚙`)
                     ?.also { yield(newToken(Type.NEWLINE, it.value)) } != null
             ) {
@@ -62,5 +66,6 @@ class RegexLexer {
             ) continue
             throw Exception("Unexpected character at $`𝚙` -> ${`𝚙`.`𝚊`}")
         }; yield(newToken(Type.EOF, ""))
+        logger.info { "Finished" }
     }
 }

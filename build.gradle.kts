@@ -11,6 +11,8 @@ repositories {
 
 dependencies {
     implementation(kotlin("reflect"))
+    implementation("io.github.microutils:kotlin-logging-jvm:3.0.4")
+    implementation("ch.qos.logback:logback-classic:1.3.14")
     testImplementation("org.jetbrains.kotlin:kotlin-test")
 }
 

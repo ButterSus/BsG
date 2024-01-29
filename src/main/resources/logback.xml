@@ -1,0 +1,33 @@
+<configuration>
+    <statusListener class="ch.qos.logback.core.status.NopStatusListener"/>
+
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>
+                %green(%d{HH:mm:ss.SSS}) | %boldCyan(%-5p) | %magenta(%-25.25logger{25}) | %blue(%m%n)
+            </pattern>
+            <charset>utf8</charset>
+        </encoder>
+    </appender>
+
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/app.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/app.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+            <maxFileSize>4MB</maxFileSize>
+            <totalSizeCap>128MB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>
+                %d{HH:mm:ss.SSS} | %-5p | %-25.25logger{25} | %m%n
+            </pattern>
+            <charset>utf8</charset>
+        </encoder>
+    </appender>
+
+    <root level="TRACE">
+        <appender-ref ref="STDOUT"/>
+        <appender-ref ref="FILE"/>
+    </root>
+</configuration>
