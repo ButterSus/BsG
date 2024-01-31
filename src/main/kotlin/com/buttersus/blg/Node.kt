@@ -6,6 +6,9 @@ import kotlin.reflect.KClass
 import kotlin.reflect.full.declaredMemberProperties
 import kotlin.reflect.full.isSubclassOf
 
+// !WARNING! If you want to use Complex Function Extension (`→…`),
+// Make sure that you wrap it with reset wrapper, as
+// these functions are not supposed to be used in the production.
 sealed class Node {
     val properties: Map<String, Node> by lazy {
         this::class.declaredMemberProperties
@@ -98,7 +101,7 @@ sealed class Node {
      * It's the solution to add token fields in properties.
      */
     class Wrapper(val `𝚝`: Token) : Node() {
-        override fun toString(): String = "Wrapper($`𝚝`)"
+        override fun toString(): String = "Wrapper(${`𝚝`.toShortString()})"
         override val `𝚙₁`: Position = `𝚝`.`𝚙₁`
         override val `𝚙₂`: Position = `𝚝`.`𝚙₂`
     }
@@ -106,7 +109,7 @@ sealed class Node {
     // Custom nodes
     // => File(nodes)
     data class File(
-        val statements: Node
+        val statements: Node,
     ) : Node()
 
     // => Statement(modifiers, name, nodes)
@@ -116,20 +119,7 @@ sealed class Node {
         val nodes: Node,
     ) : Node()
 
-//    data class Set(
-//        val isPositive: Boolean,
-//        val items: Node,
-//    ) : Node() {
-//        override val parameters: Map<String, String> = mapOf(
-//            "sign" to if (isPositive) "+" else "-",
-//        )
-//    }
-//
-//    data class Range(
-//        val from: Node,
-//        val to: Node,
-//    ) : Node()
-//
+    // => Kleene(pattern, type = $enumStringMap(KleeneType, '*': STAR, '+': PLUS, '?': QUESTION)
     data class Kleene(
         val pattern: Node,
         val type: KleeneType,
@@ -138,6 +128,10 @@ sealed class Node {
             "type" to type.toString(),
         )
 
+        companion object {
+            fun special(pattern: Node, `𝚜₁`: Node): Kleene = Kleene(pattern, KleeneType.fromString(`𝚜₁`.`𝚟`))
+        }
+
         enum class KleeneType {
             STAR,
             PLUS,
@@ -145,9 +139,9 @@ sealed class Node {
 
             companion object {
                 fun fromString(string: String): KleeneType = when (string) {
-                    "*" -> STAR
-                    "+" -> PLUS
-                    "?" -> QUESTION
+                    "*" -> KleeneType.STAR
+                    "+" -> KleeneType.PLUS
+                    "?" -> KleeneType.QUESTION
                     else -> throw IllegalArgumentException("Unknown parameter: $string")
                 }
             }

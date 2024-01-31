@@ -26,8 +26,11 @@
         </encoder>
     </appender>
 
-    <root level="TRACE">
+    <root level="DEBUG">
         <appender-ref ref="STDOUT"/>
         <appender-ref ref="FILE"/>
     </root>
+
+    <logger name="com.buttersus.blg.Lexer" level="TRACE"/>
+    <logger name="com.buttersus.blg.Parser" level="TRACE"/>
 </configuration>

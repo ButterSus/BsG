@@ -19,15 +19,16 @@ class Lexer {
     private val indentStack = mutableListOf(0)
 
     // Methods
-    fun tokenize(): Iterator<Token> = iterator{
+    fun tokenize(): Iterator<Token> = iterator {
         logger.info { "Starting..." }
         while (`𝚙`.isNotAtEnd()) {
+            // Skip whitespaces
             Regex("""[^\S\r\n]*""").matchAt(`𝚙`)!!
                 .also { this@Lexer.`𝚙` += it.value.length }
+            // Indent; Dedent; Newline
             if (Regex("""\r?\n(?:[^\S\r\n]*\r?\n)*""").matchAt(`𝚙`)
                     ?.also { yield(newToken(Type.NEWLINE, it.value)) } != null
             ) {
-                // indent, dedent handling
                 Regex("""[^\S\r\n]*""").matchAt(`𝚙`)!!
                     .also {
                         val newIndentLevel = it.value.length
@@ -56,16 +57,22 @@ class Lexer {
                     ?.also { yield(newToken(Type.CNAME, it.value)) } != null
             ) continue
             if (Regex("""'.*?'""", RegexOption.DOT_MATCHES_ALL).matchAt(`𝚙`)
-                    ?.also { yield(newToken(Type.SINGLE_STRING, it.value)) } != null
+                    ?.also { yield(newToken(Type.S_STR, it.value)) } != null
             ) continue
             if (Regex("""".*?"""", RegexOption.DOT_MATCHES_ALL).matchAt(`𝚙`)
-                    ?.also { yield(newToken(Type.DOUBLE_STRING, it.value)) } != null
+                    ?.also { yield(newToken(Type.D_STR, it.value)) } != null
             ) continue
-            if (Regex("""[:.<>{}()=$+*?!|,]|=>|->|\?!""", RegexOption.DOT_MATCHES_ALL).matchAt(`𝚙`)
+            if (Regex("""=>|[:.<>{}()=$+*?!|,]|->|\?!""", RegexOption.DOT_MATCHES_ALL).matchAt(`𝚙`)
                     ?.also { yield(newToken(Type.OPERATOR, it.value)) } != null
             ) continue
+            // Unexpected character
             throw Exception("Unexpected character at $`𝚙` -> ${`𝚙`.`𝚊`}")
-        }; yield(newToken(Type.EOF, ""))
+        }
+        // Add dedents; Newline; EOF
+        indentStack.run { forEach { _ -> yield(newToken(Type.DEDENT, "")) }; clear() }
+        `𝚂`.`𝜔`.indices.reversed().find { `𝚂`.`𝜔`[it] !in "\t\r " }
+            ?.let { if (`𝚂`.`𝜔`[it] != '\n') yield(newToken(Type.NEWLINE, "")) }
+        yield(newToken(Type.EOF, ""))
         logger.info { "Finished" }
     }
 }

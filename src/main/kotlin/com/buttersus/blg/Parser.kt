@@ -48,6 +48,7 @@ class Parser {
     // Memoization methods
     private val `𝕄`: MutableMap<Index, MutableMap<String, Pair<Node?, Index>>> =
         mutableMapOf() // memoization table
+    val traceStack = mutableListOf<String>() // stack of productions
 
     /**
      * Memoization method for `𝚏` productions,
@@ -66,10 +67,19 @@ class Parser {
      * @see 𝕄
      */
     private fun `𝚖`(`𝚔`: String, `𝚕`: Boolean = false, `𝚏`: () -> Node?): Node? {
+        logger.trace {
+            val last = traceStack.lastOrNull()
+            "+${traceStack.size + 1}($`𝚔`)".padEnd(21) + " | ${last ?: "∅"}".also { traceStack.add(`𝚔`) }
+        }
+        fun onReturn(`𝚛`: Node?) = logger.trace {
+            traceStack.removeLast()
+            " -${traceStack.size + 1}($`𝚔`)".padEnd(21) + " -> $`𝚛`"
+        }
+
         val `𝚒₀` = mark()
         val `𝚖` = `𝕄`.getOrPut(`𝚒`) { mutableMapOf() }
-        `𝚖`[`𝚔`]?.run { this.second.toMark(); return this.first }
-        if (!`𝚕`) return `𝚏`().also { `𝚖`[`𝚔`] = it to mark() }
+        `𝚖`[`𝚔`]?.run { this.second.toMark(); return this.first.also(::onReturn) }
+        if (!`𝚕`) return `𝚏`().also { `𝚖`[`𝚔`] = it to mark() }.also(::onReturn)
         var `𝚗`: Node? = null
         var `𝚒`: Index = `𝚒₀`
         `𝚖`[`𝚔`] = null to `𝚒`
@@ -81,7 +91,7 @@ class Parser {
             `𝚒` = mark()
             `𝚖`[`𝚔`] = `𝚗` to `𝚒`
         }
-        return `𝚗`.also { `𝚒`.toMark() }
+        return `𝚗`.also { `𝚒`.toMark() }.also(::onReturn)
     }
 
     // Parser methods
@@ -252,8 +262,7 @@ class Parser {
         while (true) {
             `𝚒` = mark()
             `𝚜`() ?: return `ℕ`.also { `𝚒`.toMark() }
-            val `𝚗` = `𝚏`() ?: return `ℕ`.also { `𝚒`.toMark() }
-            `ℕ`.add(`𝚗`)
+            `ℕ`.add(`𝚏`() ?: return `ℕ`.also { `𝚒`.toMark() })
         }
     }
 
@@ -379,12 +388,22 @@ class Parser {
 
     // 6. Special methods
     // =================>
+    /** `!α` -> "Expected 'α'" */
     private fun `!`(`𝚝`: String, `𝚏`: () -> Node?): Node {
         return `𝚏`() ?: run {
             val `𝚙₁` = peek()?.`𝚙₁` ?: `𝕋′`.last().`𝚙₁`
             val `𝚙₂` = peek()?.`𝚙₂` ?: `𝕋′`.last().`𝚙₂`
             throw SyntaxException(`𝚙₁`, `𝚙₂`, `𝚝`)
         }
+    }
+
+    /**
+     * Safety method: Wrap unsafe productions with this method,
+     * so they always reset state of the parser if failed.
+     */
+    private fun<R: Node, F: () -> R?> F.resetWrap(): () -> R? = {
+        val `𝚒` = mark()
+        this().also { it ?: reset(`𝚒`) }
     }
 
     // Custom productions
@@ -409,7 +428,8 @@ class Parser {
     private fun `statement`(): Node? = `𝚖`(
         "statement", false,
         // .modifiers .identifier !':' -> "Expected ':'"
-        // <NEWLINE> <INDENT> .node:<NEWLINE>+ <DEDENT> => Statement(modifiers, name, nodes)
+        // <NEWLINE> <INDENT> .node:<NEWLINE>+ <NEWLINE>?
+        // <DEDENT> => Statement(modifiers, name, nodes)
         Node::Statement.`→…`(
             setOf(1),
             ::`{…}`.`→`(
@@ -422,12 +442,14 @@ class Parser {
                     ::`node`,
                     ::`≈`.`→`(Type.NEWLINE)
                 ),
+                ::`∅`.`→`(::`≈`.`→`(Type.NEWLINE)),
                 ::`≈`.`→`(Type.DEDENT)
             ).select(1, 2, 6)
-        )
+        ).resetWrap()
     )
 
-    private fun `modifiers`(): Node? = `𝚖`("modifiers", false,
+    private fun `modifiers`(): Node? = `𝚖`(
+        "modifiers", false,
         // {'main' | 'public' | 'private' | 'protected'}* => Self
         ::`⋃⊛`.`→`(
             ::`≡`.`→`("main"),
@@ -437,7 +459,8 @@ class Parser {
         )
     )
 
-    private fun `identifier`(): Node? = `𝚖`("identifier", false,
+    private fun `identifier`(): Node? = `𝚖`(
+        "identifier", false,
         // <CNAME> | <NAME> => Self
         ::`⋃`.`→`(
             ::`≈`.`→`(Type.CNAME),
@@ -445,8 +468,9 @@ class Parser {
         )
     )
 
-    private fun `node`(): Node? = `𝚖`("identifier", false,
-        // .element+ !'=>' -> "Expected '=>'" .result => Node(elements, result)
+    private fun `node`(): Node? = `𝚖`(
+        "node", false,
+        // .element+ !'=>' -> "Expected '=>'" .result => Self
         ::`{…}`.`→`(
             ::`⊕`.`→`(
                 ::`basic-PEG`
@@ -456,13 +480,35 @@ class Parser {
         ).select(1, 3)
     )
 
-    private fun `basic-PEG`(): Node? = `𝚖`("element", false,
-        // elementary-PEG {'*' | '+' | '?'} => Kleene(pattern, type = $enumStringMap(KleeneType, '*': STAR, '+': PLUS, '?': QUESTION))
-        TODO()
+    private fun `basic-PEG`(): Node? = `𝚖`(
+        "basic-PEG", false,
+        ::`⋃`.`→`(
+            // elementary-PEG {'*' | '+' | '?'} => Kleene(pattern, type = $enumStringMap(KleeneType, '*': STAR, '+': PLUS, '?': QUESTION)
+            Node::Kleene.`→…`(
+                ::`elementary-PEG`,
+                ::`⋃`.`→`(
+                    ::`≡`.`→`("*"),
+                    ::`≡`.`→`("+"),
+                    ::`≡`.`→`("?")
+                )
+            ).resetWrap(),
+            // elementary-PEG => Self
+            ::`elementary-PEG`
+        )
     )
 
-    private fun `result`(): Node? = `𝚖`("result", false,
-        TODO("Not yet implemented")
+    private fun `elementary-PEG`(): Node? = `𝚖`(
+        "elementary-PEG", false,
+        ::`⋃`.`→`(
+            // identifier => Self
+            ::`identifier`
+        )
+    )
+
+    private fun `result`(): Node? = `𝚖`(
+        "result", false,
+        // 'Self'
+        ::`≡`.`→`("Self")
     )
 
 //    private fun `RE`(): Node? = `𝚖`("RE", true) {
