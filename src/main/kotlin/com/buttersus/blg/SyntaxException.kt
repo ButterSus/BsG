@@ -1,11 +1,9 @@
 package com.buttersus.blg
 
+import com.buttersus.gramutils.*
+
 class SyntaxException(
-    `𝚙₁`: Position,
-    `𝚙₂`: Position,
+    `𝚙ₛ`: Position,
+    `𝚙ₑ`: Position,
     message: String,
-) : Exception(
-    """
-    |Syntax error: $message
-    """.trimMargin()
-)
+) : SyntaxExceptionBase(`𝚙ₛ`, `𝚙ₑ`, message)

@@ -1,6 +1,7 @@
 package com.buttersus
 
 import com.buttersus.blg.*
+import com.buttersus.gramutils.*
 import mu.KotlinLogging
 
 val logger = KotlinLogging.logger {}
@@ -11,10 +12,10 @@ fun main() {
         ?.readText()?.toSource() ?: throw Exception("Could not read file")
     logger.info { "File read" }
 
-    val `𝕃` = Lexer()(`𝚂`).tokenize()
+    val `𝕃` = Lexer()(`𝚂`)
     val `ℙ` = Parser()(`𝕃`).parse()
 
     logger.info { "Printing..." }
-    println(`ℙ`?.toPretty())
+    println(`ℙ`.prettier(2))
     logger.info { "Printed" }
 }
