@@ -111,7 +111,7 @@ abstract class LexerBase<S : LexerBase<S, TT, TB>, TT : TypeBase, TB : TokenBase
      */
     protected fun newToken(`𝚃`: TT, `𝚟`: String): TB = createToken(`𝚃`, `𝚟`)
         .also { token ->
-            logger.trace { "$token" }
+            logger.trace { token.toFormattedString() }
             `𝚙` += `𝚟`.length
         }
 

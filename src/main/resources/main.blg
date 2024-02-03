@@ -1,2 +1,2 @@
 main RE:
-    Token Token => Self
+    Token+ Token => Self

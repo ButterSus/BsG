@@ -186,7 +186,7 @@ abstract class ParserBase
      */
     protected fun <R : NB, F : () -> R?> F.withReset(): () -> R? = {
         val `𝚒` = mark()
-        this()?.also { reset(`𝚒`) }
+        this() ?: null.also { reset(`𝚒`) }
     }
 
     /** Match by string. */
