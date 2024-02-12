@@ -31,6 +31,6 @@
         <appender-ref ref="FILE"/>
     </root>
 
-    <logger name="com.buttersus.blg.Lexer" level="TRACE"/>
-    <logger name="com.buttersus.blg.Parser" level="TRACE"/>
+    <logger name="com.buttersus.bsg.Lexer" level="TRACE"/>
+    <logger name="com.buttersus.bsg.Parser" level="TRACE"/>
 </configuration>

@@ -1,30 +1,32 @@
-@file:Suppress(
-    "MemberVisibilityCanBePrivate", "SameParameterValue",
-    "Unused", "RedundantNullableReturnType"
-)
+@file:Suppress("RedundantNullableReturnType")
 
-package com.buttersus.blg
+package com.buttersus.bsg
 
 import com.buttersus.gramutils.*
 
-class Parser : ParserBase<
-        Parser, Node, Node.Wrapper, Node.Empty, SyntaxException,
-        Node.Group, Node.DynamicGroup, Lexer, TokenType, Token>() {
+class Parser<NB : Node<NB>> : ParserBase<
+        Parser<NB>, NB, Node.Wrapper,
+        Lexer, TokenType, Token>() {
     // Create methods
     override fun createWrapperNode(`𝚝`: Token) = Node.Wrapper(`𝚝`)
-    override fun createEmptyNode() = Node.Empty
-    override fun createGroupNode(nodes: List<Node>) = Node.Group(*nodes.toTypedArray())
-    override fun createDynamicGroupNode(nodes: List<Node>) = Node.DynamicGroup(*nodes.toTypedArray())
+
+    override fun <N : NodeBase<N>> createGroupNode(nodes: List<Opt<N>>): NodeGroupBase<N, *> {
+        @Suppress("UNCHECKED_CAST")
+        return Node.Group(*nodes.toTypedArray() as Array<Opt<NB>>) as NodeGroupBase<N, *>
+    }
+
+    override fun <N : NodeBase<N>> createDynamicGroupNode(nodes: List<Opt<NB>>): NodeDynamicGroupBase<N, *> {
+        @Suppress("UNCHECKED_CAST")
+        return Node.DynamicGroup(*nodes.toTypedArray()) as NodeDynamicGroupBase<N, *>
+    }
+
     override fun raiseSyntaxException(`𝚙ₛ`: Position, `𝚙ₑ`: Position, `𝚝`: String) =
         throw SyntaxException(`𝚙ₛ`, `𝚙ₑ`, `𝚝`)
 
     // Custom productions
-    override fun parse(): Node? {
-        logger.info { "Starting..." }
-        return file().also { logger.info { "Finished" } }
-    }
+    override fun parse() = logger.info { "Starting..." }.let { `file`().also { logger.info { "Finished" } } }
 
-    private fun file(): Node? = `𝚖`(
+    private fun `file`() = `𝚖`(
         "file", false,
         ::`∨`.`→`(
             // statement:<NEWLINE>* => File(statements)
@@ -37,7 +39,7 @@ class Parser : ParserBase<
         )
     )
 
-    private fun `statement`(): Node? = `𝚖`(
+    private fun `statement`() = `𝚖`(
         "statement", false,
         // .modifiers .identifier !':' -> "Expected ':'"
         // <NEWLINE> <INDENT> .node:<NEWLINE>+ <NEWLINE>?
@@ -60,7 +62,7 @@ class Parser : ParserBase<
         ).withReset()
     )
 
-    private fun `modifiers`(): Node? = `𝚖`(
+    private fun `modifiers`() = `𝚖`(
         "modifiers", false,
         // {'main' | 'public' | 'private' | 'protected'}* => Self
         ::`∨⊛`.`→`(
@@ -71,7 +73,7 @@ class Parser : ParserBase<
         )
     )
 
-    private fun `identifier`(): Node? = `𝚖`(
+    private fun `identifier`() = `𝚖`(
         "identifier", false,
         // <CNAME> | <NAME> => Self
         ::`∨`.`→`(
@@ -80,7 +82,7 @@ class Parser : ParserBase<
         )
     )
 
-    private fun `node`(): Node? = `𝚖`(
+    private fun `node`() = `𝚖`(
         "node", false,
         // .element+ !'=>' -> "Expected '=>'" .result => Self
         ::`{…}`.`→`(
@@ -92,7 +94,7 @@ class Parser : ParserBase<
         ).select(1, 3)
     )
 
-    private fun `basic-PEG`(): Node? = `𝚖`(
+    private fun `basic-PEG`() = `𝚖`(
         "basic-PEG", false,
         ::`∨`.`→`(
             // elementary-node {'*' | '+' | '?'} => Kleene(pattern, type = $enumStringMap(KleeneType, '*': STAR, '+': PLUS, '?': QUESTION)
@@ -109,7 +111,7 @@ class Parser : ParserBase<
         )
     )
 
-    private fun `elementary-PEG`(): Node? = `𝚖`(
+    private fun `elementary-PEG`() = `𝚖`(
         "elementary-PEG", false,
         ::`∨`.`→`(
             // identifier => Self

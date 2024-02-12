@@ -35,6 +35,8 @@ abstract class LexerBase<S : LexerBase<S, TT, TB>, TT : TypeBase, TB : TokenBase
      */
     protected abstract fun lex(): Iterator<TB>
 
+    private var isFirstToken = true
+
     /**
      * Tokenizes the source, and returns an iterator of tokens.
      * Note, that during the tokenization, you can interact with the lexer
@@ -45,8 +47,10 @@ abstract class LexerBase<S : LexerBase<S, TT, TB>, TT : TypeBase, TB : TokenBase
         while (`𝚙`.isNotAtEnd()) {
             Regex("""[^\S\r\n]*""").matchAt(`𝚙`)!!
                 .also { this@LexerBase.`𝚙` += it.value.length }
-            if (details.generateNewlines && Regex("""\r?\n(?:[^\S\r\n]*\r?\n)*""").matchAt(`𝚙`)
-                    ?.also { yield(newToken(details.getNewline()!!, it.value)) } != null
+            if (details.generateNewlines && Regex("""\r?\n(?:[^\S\r\n]*\r?\n)*""").matchAt(`𝚙`)?.also {
+                    if (details.keepFirstNewline || !isFirstToken) yield(newToken(details.getNewline()!!, it.value))
+                    else this@LexerBase.`𝚙` += it.value.length
+                } != null
             ) {
                 Regex("""[^\S\r\n]*""").matchAt(`𝚙`)!!
                     .also {
@@ -71,12 +75,14 @@ abstract class LexerBase<S : LexerBase<S, TT, TB>, TT : TypeBase, TB : TokenBase
                 continue
             }
             val iterator = lex()
-            if (iterator.hasNext()) yieldAll(iterator)
+            val `𝚙₀` = `𝚙`.copy()
+            if (iterator.hasNext() || `𝚙` != `𝚙₀`) yieldAll(iterator)
             else throw Exception("Unexpected character at $`𝚙` -> ${`𝚙`.`𝚊`}")
         }
         if (details.generateIndents) indentStack
             .run { forEach { _ -> yield(newToken(details.getDedent()!!, "")) }; clear() }
-        if (details.generateNewlines && details.lastNewline) `𝚂`.`𝜔`.indices.reversed().find { `𝚂`.`𝜔`[it] !in "\t\r " }
+        if (details.generateNewlines && details.generateLastNewline) `𝚂`.`𝜔`.indices.reversed()
+            .find { `𝚂`.`𝜔`[it] !in "\t\r " }
             ?.let { if (`𝚂`.`𝜔`[it] != '\n') yield(newToken(details.getNewline()!!, "")) }
         if (details.generateEOF) yield(newToken(details.getEOF()!!, ""))
         logger.info { "Finished" }
@@ -91,8 +97,14 @@ abstract class LexerBase<S : LexerBase<S, TT, TB>, TT : TypeBase, TB : TokenBase
      * yieldRegex("""\d+""", TokenType.NUMBER) ?: return
      * ```
      */
-    protected suspend fun SequenceScope<TB>.yieldRegex(pattern: String, type: TT): Unit? =
-        Regex(pattern, RegexOption.DOT_MATCHES_ALL).matchAt(`𝚙`)?.also { yield(newToken(type, it.value)) }
+    protected suspend fun SequenceScope<TB>.yieldRegex(pattern: String, type: TT, vararg flags: RegexOption): Unit? =
+        Regex(pattern, flags.toSet() + RegexOption.DOT_MATCHES_ALL).matchAt(`𝚙`)
+            ?.also { yield(newToken(type, it.value)) }
+            .let { if (it == null) Unit else null }
+
+    protected fun SequenceScope<TB>.skipRegex(pattern: String, vararg flags: RegexOption): Unit? =
+        Regex(pattern, flags.toSet() + RegexOption.DOT_MATCHES_ALL).matchAt(`𝚙`)
+            ?.also { `𝚙` += it.value.length; logger.trace { "Skipped: ${it.value}" } }
             .let { if (it == null) Unit else null }
 
     /**
@@ -111,8 +123,9 @@ abstract class LexerBase<S : LexerBase<S, TT, TB>, TT : TypeBase, TB : TokenBase
      */
     protected fun newToken(`𝚃`: TT, `𝚟`: String): TB = createToken(`𝚃`, `𝚟`)
         .also { token ->
-            logger.trace { token.toFormattedString() }
+            if (!details.keepFirstNewline) isFirstToken = false
             `𝚙` += `𝚟`.length
+            logger.trace { token.toFormattedString() }
         }
 
     /**

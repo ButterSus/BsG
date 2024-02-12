@@ -29,7 +29,7 @@ interface TypeDetails<TB: TypeBase> {
     /**
      * Should the parser generate newline tokens?
      *
-     * @see lastNewline
+     * @see generateLastNewline
      * @see getNewline
      */
     val generateNewlines: Boolean
@@ -60,7 +60,17 @@ interface TypeDetails<TB: TypeBase> {
      * @see generateNewlines
      * @see getNewline
      */
-    val lastNewline: Boolean
+    val generateLastNewline: Boolean
+        get() = false
+
+    /**
+     * Should the parser keep the first newline token?
+     * Usually whitespace that goes before the first token is ignored.
+     *
+     * @see generateNewlines
+     * @see getNewline
+     */
+    val keepFirstNewline: Boolean
         get() = false
 
     // Tokens

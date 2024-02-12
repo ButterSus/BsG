@@ -1,11 +1,10 @@
-package com.buttersus.blg
+package com.buttersus.example
 
 import com.buttersus.gramutils.*
 
 enum class TokenType {
-    NAME, CNAME, OPERATOR,
-    INDENT, DEDENT, EOF, NEWLINE,
-    S_STR, D_STR;
+    CUSTOM1, CUSTOM2,
+    INDENT, DEDENT, EOF, NEWLINE;
 
     companion object Details : TypeDetails<TokenType> {
         override val generateEOF: Boolean = true
@@ -15,9 +14,10 @@ enum class TokenType {
         override fun getNewline() = NEWLINE
 
         override val generateIndents: Boolean = true
+        override val keepFirstNewline: Boolean = false
         override fun getIndent() = INDENT
         override fun getDedent() = DEDENT
 
-        override val lastNewline: Boolean = true
+        override val generateLastNewline: Boolean = true
     }
 }

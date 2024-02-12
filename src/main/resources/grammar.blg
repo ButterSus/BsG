@@ -1,0 +1,16 @@
+@name:          "Parser"
+@package:       "com.buttersus.bsg"
+@comments:      true
+@formatting:    true
+@node:          "Node"
+@exception:     "SyntaxException"
+@visibility:    "private"
+
+main file:
+    options statements => (options, statements)
+
+options:
+    {}+
+
+option:
+    '@' .<NAME> ':' .{<S_STR> | <D_STR> | <NUMBER> | 'true' | 'false'}:1 => Option(name, value)

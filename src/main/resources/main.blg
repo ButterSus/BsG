@@ -1,2 +1,4 @@
-main RE:
+// Anything here
+
+main RE: // Skipped comment
     Token+ Token => Self

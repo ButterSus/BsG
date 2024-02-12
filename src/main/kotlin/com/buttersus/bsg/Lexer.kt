@@ -1,6 +1,6 @@
 @file:Suppress("MemberVisibilityCanBePrivate", "unused")
 
-package com.buttersus.blg
+package com.buttersus.bsg
 
 import com.buttersus.gramutils.*
 
@@ -10,10 +10,12 @@ class Lexer : LexerBase<Lexer, TokenType, Token>(TokenType.Details) {
 
     // Lex method
     override fun lex() = iterator {
-        yieldRegex("""\p{L}+(?!-)\b""", TokenType.NAME) ?: return@iterator
-        yieldRegex("""[\p{L}0-9-]+\b""", TokenType.CNAME) ?: return@iterator
+        skipRegex("""//.*?(?=\n)""") ?: return@iterator
+        yieldRegex("""\d+""", TokenType.NUMBER) ?: return@iterator
+        yieldRegex("""\p{L}[\p{L}0-9]*(?!-)\b""", TokenType.NAME) ?: return@iterator
+        yieldRegex("""\p{L}[\p{L}0-9-]*\b""", TokenType.CNAME) ?: return@iterator
         yieldRegex("""'.*?'""", TokenType.S_STR) ?: return@iterator
         yieldRegex("""".*?"""", TokenType.D_STR) ?: return@iterator
-        yieldRegex("""=>|[:.<>{}()=${'$'}+*?!|,]|->|\?!""", TokenType.OPERATOR) ?: return@iterator
+        yieldRegex("""=>|[:.<>{}()=${'$'}+*?!|,@]|->|\?!""", TokenType.OPERATOR) ?: return@iterator
     }
 }

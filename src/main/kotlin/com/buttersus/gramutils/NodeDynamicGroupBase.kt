@@ -9,7 +9,7 @@ package com.buttersus.gramutils
  * @param S Self type.
  * @return Dynamic group of nodes
  */
-interface NodeDynamicGroupBase<SC: NodeBase<SC>, S: NodeDynamicGroupBase<SC, S>> : MutableList<SC> {
+interface NodeDynamicGroupBase<SC: NodeBase<SC>, S: NodeDynamicGroupBase<SC, S>> {
     /**
      * Shortcut to get only needed node from the dynamic group.
      *
@@ -21,5 +21,5 @@ interface NodeDynamicGroupBase<SC: NodeBase<SC>, S: NodeDynamicGroupBase<SC, S>>
      * @param 𝚒 Index of needed node _(starts from 1)_
      * @return Needed node
      */
-    fun item(`𝚒`: Int): SC = this[`𝚒` - 1]
+    fun item(`𝚒`: Int): Opt<SC>
 }

@@ -3,6 +3,7 @@
 package com.buttersus.gramutils
 
 import mu.KotlinLogging
+import org.w3c.dom.Node
 
 /**
  * Base class for all parsers.
@@ -16,10 +17,6 @@ import mu.KotlinLogging
  * @param S Self type.
  * @param NB Node type.
  * @param WB Wrapper type.
- * @param EB Empty type.
- * @param SE Syntax exception type.
- * @param GB Group type.
- * @param DG Dynamic group type.
  * @param LB Lexer type.
  * @param TT Token type enum.
  * @param TB Token type.
@@ -31,10 +28,9 @@ import mu.KotlinLogging
 @Suppress("BOUNDS_NOT_ALLOWED_IF_BOUNDED_BY_TYPE_PARAMETER")
 abstract class ParserBase
 <
-        S : ParserBase<S, NB, WB, EB, SE, GB, DG, LB, TT, TB>, NB : NodeBase<NB>, WB, EB,
-        SE : SyntaxExceptionBase, GB, DG, LB : LexerBase<LB, TT, TB>, TT : TypeBase, TB : TokenBase<TT>,
-        > where DG : NB, DG : NodeDynamicGroupBase<NB, DG>, GB : NB, GB : NodeGroupBase<NB, GB>,
-                WB : NB, WB : NodeWrapperBase<TT, TB>, EB : NB, EB : NodeEmptyBase {
+        S : ParserBase<S, NB, WB, LB, TT, TB>, NB : NodeBase<NB>, WB,
+        LB : LexerBase<LB, TT, TB>, TT : TypeBase, TB : TokenBase<TT>
+        > where WB : NodeWrapperBase<TT, TB>, WB: NodeBase<WB>, WB: NB {
     // Necessary create methods
     /**
      * Creates a wrapper for the token.
@@ -43,22 +39,16 @@ abstract class ParserBase
     protected abstract fun createWrapperNode(`𝚝`: TB): WB
 
     /**
-     * Creates an empty node.
-     * It's used by the `≠` method, so you must override it.
+     * Creates a group of nodes from the list of nodes.
+     * It's used by the `∨` method, so you must override it.
      */
-    protected abstract fun createEmptyNode(): EB
+    protected abstract fun <N : NodeBase<N>> createGroupNode(nodes: List<Opt<N>>): NodeGroupBase<N, *>
 
     /**
      * Creates a group of nodes from the list of nodes.
      * It's used by the `∨` method, so you must override it.
      */
-    protected abstract fun createGroupNode(nodes: List<NB>): GB
-
-    /**
-     * Creates a group of nodes from the list of nodes.
-     * It's used by the `∨` method, so you must override it.
-     */
-    protected abstract fun createDynamicGroupNode(nodes: List<NB>): DG
+    protected abstract fun <N : NodeBase<N>> createDynamicGroupNode(nodes: List<Opt<NB>>): NodeDynamicGroupBase<N, *>
 
     /**
      * Creates a syntax exception.
@@ -81,7 +71,7 @@ abstract class ParserBase
      *
      * @return Root node of the AST.
      */
-    abstract fun parse(): NB?
+    abstract fun <N> parse(): Opt<N>? where N: NodeBase<N>, N: NB
 
     /**
      * Resets the parser to its initial state, and sets the lexer to the given one.
@@ -100,7 +90,7 @@ abstract class ParserBase
     }
 
     // Memoization
-    private val `𝕄`: MutableMap<Index, MutableMap<String, Pair<NB?, Index>>> = mutableMapOf()
+    private val `𝕄`: MutableMap<Index, MutableMap<String, Pair<Opt<NB>?, Index>>> = mutableMapOf()
     private val traceStack = mutableListOf<String>()
 
     /**
@@ -120,22 +110,27 @@ abstract class ParserBase
      *
      * @see 𝕄
      */
-    protected fun `𝚖`(name: String, recursive: Boolean = false, `𝚏`: () -> NB?): NB? {
+    protected fun <N : NB, T : Opt<N>> `𝚖`(name: String, recursive: Boolean = false, `𝚏`: () -> T?): T? {
         logger.trace {
             val last = traceStack.lastOrNull()
             "+${traceStack.size + 1}($name)".padEnd(21) + " | ${last ?: "∅"}".also { traceStack.add(name) }
         }
 
-        fun onReturn(it: NB?) = logger.trace {
+        fun onReturn(it: T?) = logger.trace {
             traceStack.removeLast()
             " -${traceStack.size + 1}($name)".padEnd(21) + " -> $it"
         }
 
         val `𝚒₀` = `𝚒`
         val `𝚖₀` = `𝕄`.getOrPut(`𝚒₀`) { mutableMapOf() }
-        `𝚖₀`[name]?.run { reset(second); return first.also(::onReturn) }
-        if (!recursive) return `𝚏`().also { `𝚖₀`[name] = it to mark() }.also(::onReturn)
-        var `𝚗`: NB? = null
+        `𝚖₀`[name]?.run {
+            reset(second)
+            @Suppress("UNCHECKED_CAST")
+            return (first as T?).also(::onReturn)
+        }
+        @Suppress("UNCHECKED_CAST")
+        if (!recursive) return `𝚏`().also { `𝚖₀`[name] = it as Opt<NB>? to mark() }.also(::onReturn)
+        var `𝚗`: T? = null
         var `𝚒`: Index = `𝚒₀`
         `𝚖₀`[name] = null to `𝚒`
         while (true) {
@@ -144,7 +139,8 @@ abstract class ParserBase
             if (mark() <= `𝚒`) break
             `𝚗` = `𝚗′`
             `𝚒` = mark()
-            `𝚖₀`[name] = `𝚗` to `𝚒`
+            @Suppress("UNCHECKED_CAST")
+            `𝚖₀`[name] = (`𝚗` as Opt<NB>?) to `𝚒`
         }
         return `𝚗`.also { reset(`𝚒`) }.also(::onReturn)
     }
@@ -184,56 +180,58 @@ abstract class ParserBase
      * Wraps the given function, and resets the parser if the function failed.
      * It's highly recommended to use it for all external methods that parse something.
      */
-    protected fun <R : NB, F : () -> R?> F.withReset(): () -> R? = {
+    protected fun <N : NB, T : Opt<N>> (() -> T?).withReset(): () -> T? = {
         val `𝚒` = mark()
         this() ?: null.also { reset(`𝚒`) }
     }
 
     /** Match by string. */
-    protected fun `≡`(`𝚟`: String): WB? {
+    protected open fun `≡`(`𝚟`: String): Opt<WB>? {
         val `𝚟′` = peek()?.`𝚟` ?: return null
-        return if (`𝚟′` == `𝚟`) next()?.let(::createWrapperNode) ?: return null else null
+        return if (`𝚟′` == `𝚟`) next()?.let { Opt.of(createWrapperNode(it)) } ?: return null else null
     }
 
     /** Match by type. */
-    protected fun `≈`(`𝚝`: TT): WB? {
+    protected open fun `≈`(`𝚝`: TT): Opt<WB>? {
         val `𝚝′` = peek()?.`𝚃` ?: return null
-        return if (`𝚝′` == `𝚝`) next()?.let(::createWrapperNode) ?: return null else null
+        return if (`𝚝′` == `𝚝`) next()?.let { Opt.of(createWrapperNode(it)) } ?: return null else null
     }
 
     /** Lookahead. */
-    protected fun `≟`(`𝚏`: () -> NB?): NB? {
+    protected fun <N : NB, T : Opt<N>> `≟`(`𝚏`: () -> T?): T? {
         val `𝚒` = mark()
         return `𝚏`()?.also { reset(`𝚒`) }
     }
 
     /** Negative lookahead. */
-    protected fun `≠`(`𝚏`: () -> NB?): EB? {
+    protected fun <N : NB, T : Opt<N>> `≠`(`𝚏`: () -> T?): T? {
         val `𝚒` = mark()
-        return if (`𝚏`() == null) createEmptyNode() else null.also { reset(`𝚒`) }
+        @Suppress("UNCHECKED_CAST")
+        return if (`𝚏`() == null) Opt.EMPTY as T? else null.also { reset(`𝚒`) }
     }
 
     /** Optional. */
-    protected fun `∅`(`𝚏`: () -> NB?): NB = `𝚏`() ?: createEmptyNode()
+    @Suppress("UNCHECKED_CAST")
+    protected fun <N : NB, T : Opt<N>> `∅`(`𝚏`: () -> T?): T = `𝚏`() ?: Opt.EMPTY as T
 
     /** Alternative. */
-    protected fun `∨`(`𝚏s`: List<() -> NB?>): NB? = `𝚏s`.firstNotNullOfOrNull { it() }
+    protected fun <N : NB, T : Opt<N>> `∨`(`𝚏s`: List<() -> T?>): T? = `𝚏s`.firstNotNullOfOrNull { it() }
 
     /** One or more. */
-    protected fun `⊕`(`𝚏`: () -> NB?): DG? {
-        val `ℕ` = createDynamicGroupNode(listOf(`𝚏`() ?: return null))
+    protected fun <N : NB, TG : NodeDynamicGroupBase<N, TG>> `⊕`(`𝚏`: () -> Opt<N>?): TG? {
+        val `ℕ` = createDynamicGroupNode<N, TG>(listOf(`𝚏`() ?: return null))
         while (true) `𝚏`()?.also { `ℕ`.add(it) } ?: return `ℕ`
     }
 
     /** Zero or more. */
-    protected fun `⊛`(`𝚏`: () -> NB?): DG {
-        val `ℕ` = createDynamicGroupNode(listOf())
+    protected fun <N : NB, T : Opt<N>, TG : NodeDynamicGroupBase<N, T, TG>> `⊛`(`𝚏`: () -> T?): TG {
+        val `ℕ` = createDynamicGroupNode<N, T, TG>(listOf())
         while (true) `𝚏`()?.also { `ℕ`.add(it) } ?: return `ℕ`
     }
 
     /** One or more separated by. */
-    protected fun `⊕̂`(`𝚏`: () -> NB?, `𝚜`: () -> NB?): DG? {
-        val `ℕ` = createDynamicGroupNode(listOf(`𝚏`() ?: return null))
+    protected fun <N : NB, T : Opt<N>, TG : NodeDynamicGroupBase<N, T, TG>> `⊕̂`(`𝚏`: () -> T?, `𝚜`: () -> T?): TG? {
+        val `ℕ` = createDynamicGroupNode<N, T, TG>(listOf(`𝚏`() ?: return null))
         while (true) {
             val `𝚒` = mark(); `𝚜`() ?: return `ℕ`
             `𝚏`()?.also { `ℕ`.add(it) } ?: return `ℕ`.also { reset(`𝚒`) }
@@ -241,9 +239,9 @@ abstract class ParserBase
     }
 
     /** Zero or more separated by. */
-    protected fun `⊛̂`(`𝚏`: () -> NB?, `𝚜`: () -> NB?): DG {
+    protected fun <N : NB, T : Opt<N>, TG : NodeDynamicGroupBase<N, T, TG>> `⊛̂`(`𝚏`: () -> T?, `𝚜`: () -> T?): TG {
         var `𝚒` = mark()
-        val `ℕ` = createDynamicGroupNode(listOf())
+        val `ℕ` = createDynamicGroupNode<N, T, TG>(listOf())
         while (true) {
             `𝚏`()?.also { `ℕ`.add(it) } ?: return `ℕ`.also { reset(`𝚒`) }
             `𝚒` = mark()
@@ -252,40 +250,51 @@ abstract class ParserBase
     }
 
     /** Group. */
-    protected fun `{…}`(`𝚏s`: List<() -> NB?>): GB? {
+    protected fun <N : NB, T : Opt<N>, TS : NodeGroupBase<N, T, TS>> `{…}`(`𝚏s`: List<() -> T?>): TS? {
         val `𝚒` = mark()
         return createGroupNode(`𝚏s`.map { it() ?: return null.also { reset(`𝚒`) } })
     }
 
     /** Optional group. */
-    protected fun `{∅}`(`𝚏s`: List<Pair<() -> NB?, NB>>): GB {
+    protected fun <N : NB, T : Opt<N>, TS : NodeGroupBase<N, T, TS>> `{∅}`(`𝚏s`: List<Pair<() -> T?, T>>): TS {
         val `𝚒` = mark()
         return createGroupNode(`𝚏s`.map { (𝚏, _) ->
-            𝚏() ?: return createGroupNode(`𝚏s`.map { it.second }).also { reset(`𝚒`) }
+            𝚏() ?: return createGroupNode<N, T, TS>(`𝚏s`.map { it.second }).also { reset(`𝚒`) }
         })
     }
 
     /** Optional group. */
-    protected fun `{∅→}`(`𝚏s`: List<Pair<() -> NB?, () -> NB>>): GB {
+    protected fun <N : NB, T : Opt<N>, TS : NodeGroupBase<N, T, TS>> `{∅→}`(`𝚏s`: List<Pair<() -> T?, () -> T>>): TS {
         val `𝚒` = mark()
         return createGroupNode(`𝚏s`.map { (𝚏, _) ->
-            𝚏() ?: return createGroupNode(`𝚏s`.map { it.second() }).also { reset(`𝚒`) }
+            𝚏() ?: return createGroupNode<N, T, TS>(`𝚏s`.map { it.second() }).also { reset(`𝚒`) }
         })
     }
 
     /** Forbidden. */
-    protected fun `!`(`𝚝`: String, `𝚏`: () -> NB?): NB = `𝚏`() ?: run {
+    protected fun <N : NB, T : Opt<N>> `!`(`𝚝`: String, `𝚏`: () -> T?): T = `𝚏`() ?: run {
         raiseSyntaxException(peek()?.`𝚙ₛ` ?: `𝕋`.last().`𝚙ₑ`, peek()?.`𝚙ₑ` ?: `𝕋`.last().`𝚙ₑ`, `𝚝`)
     }
 
     // Shortcut parsing
-    protected fun `≈∅`(`𝚝`: TT): NB = `∅` { `≈`(`𝚝`) }
-    protected fun `≈⊕`(`𝚝`: TT): DG? = `⊕` { `≈`(`𝚝`) }
-    protected fun `≈⊛`(`𝚝`: TT): DG = `⊛` { `≈`(`𝚝`) }
-    protected fun `≡∅`(`𝚟`: String): NB = `∅` { `≡`(`𝚟`) }
-    protected fun `≡⊕`(`𝚟`: String): DG? = `⊕` { `≡`(`𝚟`) }
-    protected fun `≡⊛`(`𝚟`: String): DG = `⊛` { `≡`(`𝚟`) }
-    protected fun `∨∅`(`𝚏s`: List<() -> NB?>): NB? = `∨`(`𝚏s`)
-    protected fun `∨⊕`(`𝚏s`: List<() -> NB?>): DG? = `⊕` { `∨`(`𝚏s`) }
-    protected fun `∨⊛`(`𝚏s`: List<() -> NB?>): DG = `⊛` { `∨`(`𝚏s`) }
+    @Suppress("UNCHECKED_CAST")
+    protected fun <N : NB, T : Opt<N>> `≈∅`(`𝚝`: TT): T = `∅` { `≈`(`𝚝`) as T? }
+
+    @Suppress("UNCHECKED_CAST")
+    protected fun <N : NB, TG : NodeDynamicGroupBase<N, TG>> `≈⊕`(`𝚝`: TT): TG? =
+        `⊕`<N, T, TG> { `≈`(`𝚝`) as T? }
+
+    @Suppress("UNCHECKED_CAST")
+    protected fun <N : NB, TG : NodeDynamicGroupBase<N, TG>> `≈⊛`(`𝚝`: TT): TG = `⊛` { `≈`(`𝚝`) as T? }
+
+    protected fun <N : NB, T : Opt<N>> `≡∅`(`𝚟`: String): T = `∅` { `≡`(`𝚟`) }
+    protected fun <N : NB, TG : NodeDynamicGroupBase<N, TG>> `≡⊕`(`𝚟`: String): TG? =
+        `⊕`<N, TG> { `≡`(`𝚟`) }
+
+    protected fun <N : NB, T : Opt<N>, TG : NodeDynamicGroupBase<N, T, TG>> `≡⊛`(`𝚟`: String): TG = `⊛` { `≡`(`𝚟`) }
+    protected fun <N : NB, T : Opt<N>> `∨∅`(`𝚏s`: List<() -> T?>): T? = `∨`(`𝚏s`)
+    protected fun <N : NB, T : Opt<N>, TG : NodeDynamicGroupBase<N, T, TG>> `∨⊕`(`𝚏s`: List<() -> T?>): TG? =
+        `⊕`<N, T, TG> { `∨`(`𝚏s`) }
+
+    protected fun <N : NB, T : Opt<N>, TG : NodeDynamicGroupBase<N, T, TG>> `∨⊛`(`𝚏s`: List<() -> T?>): TG = `⊛` { `∨`(`𝚏s`) }
 }
